@@ -1,8 +1,38 @@
+
 (()=>{
 const URL='https://bgafsvpgijqywjoiersq.supabase.co',KEY='sb_publishable_k4ZsbNa5sBBFHHN3Q1QZDw_pgjdlj4x',db=window.supabase.createClient(URL,KEY),$=s=>document.querySelector(s);
 let match=null,deliveries=[],sessionUser=null,teams=[],players=[],tournaments=[];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const msg=t=>$('#scoreMsg').textContent=t,err=(a,b,c)=>[a,b,c].filter(Boolean).map(x=>x.message).join(' · ');
+
+// GENERATE PUBLIC SPECTATOR LINK
+function updateSpectatorLink(){
+    const link=$('#watchLink');
+    const copy=$('#copyLink');
+
+    if(!link||!copy)return;
+
+    if(!match||!match.id){
+        link.href='#';
+        link.textContent='Open live match';
+        copy.disabled=true;
+        return;
+    }
+
+    if(match.is_public!==true){
+        link.href='#';
+        link.textContent='Match is private';
+        copy.disabled=true;
+        return;
+    }
+
+    const url=new URL('../watch/',window.location.href);
+    url.searchParams.set('id',match.id);
+
+    link.href=url.href;
+    link.textContent=url.href;
+    copy.disabled=false;
+}
 
 async function requireUser(){
     const {data:{session}}=await db.auth.getSession();
@@ -194,10 +224,8 @@ function render(){
     $('#teamsLine').textContent=
         `${match.batting_team} batting · ${match.bowling_team} bowling · Innings ${match.innings} · ${match.status}`;
 
-    const link=new URL(`../watch/?id=${match.id}`,location.href);
-
-    $('#watchLink').href=link.href;
-    $('#watchLink').textContent=link.href;
+    // Update the spectator URL whenever a match is loaded or rendered.
+    updateSpectatorLink();
 
     $('#feed').innerHTML=deliveries
         .filter(d=>Number(d.innings_no||1)===Number(match.innings))
@@ -595,10 +623,12 @@ $('#finishMatch').addEventListener('click',finishMatch);
 
 // COPY SPECTATOR LINK
 async function copySpectatorLink(){
+    updateSpectatorLink();
+
     const link=$('#watchLink');
     const url=link?.href;
 
-    if(!match||!url||url==='about:blank'){
+    if(!match||match.is_public!==true||!url||url==='#'||url==='about:blank'){
         msg('Open a match first.');
         return;
     }
