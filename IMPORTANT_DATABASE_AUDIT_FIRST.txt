@@ -1,0 +1,10 @@
+IMPORTANT — READ BEFORE DEPLOYING
+
+This package contains the latest full website source and the public scoreboard changes. Your live Supabase database has already returned:
+ERROR 42703: column d.innings_no does not exist.
+
+Therefore, the package cannot honestly be described as fully integrated with your live database yet. The actual delivery and match schemas, saved delivery rows, and RLS policies must be inspected first.
+
+Run DATABASE_AUDIT_READ_ONLY.sql in Supabase and share its results. It is read-only. Do not run further guessed migrations or reset the database until the schema and saved records are confirmed.
+
+The ZIP's JavaScript syntax and archive integrity were checked; live Supabase workflows have not been tested.
