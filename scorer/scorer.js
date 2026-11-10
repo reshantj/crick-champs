@@ -1,4 +1,3 @@
-
 (()=>{
 const URL='https://bgafsvpgijqywjoiersq.supabase.co',KEY='sb_publishable_k4ZsbNa5sBBFHHN3Q1QZDw_pgjdlj4x',db=window.supabase.createClient(URL,KEY),$=s=>document.querySelector(s);
 let match=null,deliveries=[],sessionUser=null,teams=[],players=[],tournaments=[];
