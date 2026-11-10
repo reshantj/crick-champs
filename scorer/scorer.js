@@ -1,9 +1,10 @@
+
 (()=>{
 'use strict';
 
-const URL='https://bgafsvpgijqywjoiersq.supabase.co';
+const SUPABASE_URL='https://bgafsvpgijqywjoiersq.supabase.co';
 const KEY='sb_publishable_k4ZsbNa5sBBFHHN3Q1QZDw_pgjdlj4x';
-const db=window.supabase.createClient(URL,KEY);
+const db=window.supabase.createClient(SUPABASE_URL,KEY);
 const $=s=>document.querySelector(s);
 
 let match=null;
@@ -34,7 +35,6 @@ function generateMatchLink(matchId,isPublic=true){
     if(!input||!link||!copy)return;
 
     if(!matchId){
-
         input.value='';
         input.placeholder='Match ID not available';
         link.href='#';
@@ -42,12 +42,10 @@ function generateMatchLink(matchId,isPublic=true){
         copy.disabled=true;
 
         if(status)status.textContent='Match ID not available.';
-
         return;
     }
 
     if(isPublic!==true){
-
         input.value='';
         input.placeholder='This match is private';
         link.href='#';
@@ -55,11 +53,10 @@ function generateMatchLink(matchId,isPublic=true){
         copy.disabled=true;
 
         if(status)status.textContent='This match is not publicly viewable.';
-
         return;
     }
 
-    const url=new URL(
+    const url=new window.URL(
         'https://reshantj.github.io/crick-champs/watch/'
     );
 
@@ -95,14 +92,12 @@ async function requireUser(){
     }
 
     sessionUser=session.user;
-
     return true;
 }
 
 
 // ========================================
 // SAVED MATCHES
-// EACH MATCH GETS A DIFFERENT LINK
 // ========================================
 
 async function loadSavedMatches(){
@@ -114,10 +109,8 @@ async function loadSavedMatches(){
         .limit(50);
 
     if(r.error){
-
         $('#savedMatches').textContent=
             'Saved matches could not load: '+r.error.message;
-
         return;
     }
 
@@ -125,7 +118,7 @@ async function loadSavedMatches(){
 
         const publicMatch=m.is_public===true;
 
-        const url=new URL(
+        const url=new window.URL(
             'https://reshantj.github.io/crick-champs/watch/'
         );
 
@@ -133,52 +126,27 @@ async function loadSavedMatches(){
 
         return `
         <div class="panel" style="margin:12px 0;padding:14px;">
-
             <h3>${esc(m.match_title)}</h3>
-
             <p>${esc(m.team_a)} vs ${esc(m.team_b)}</p>
-
             <p>
                 <b>Score:</b>
                 ${m.runs||0}/${m.wickets||0}
                 (${Math.floor((m.legal_balls||0)/6)}.${(m.legal_balls||0)%6})
             </p>
-
             <p><b>Status:</b> ${esc(m.status)}</p>
-
             <label>Public Match Link</label>
-
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-
-                <input
-                    type="text"
-                    readonly
+                <input type="text" readonly
                     value="${publicMatch?esc(url.href):'Private match — no public link'}"
                     style="flex:1;min-width:220px;"
-                    ${publicMatch?'':'disabled'}
-                >
-
+                    ${publicMatch?'':'disabled'}>
                 ${publicMatch?`
-                    <button type="button" data-copy-match="${esc(m.id)}">
-                        Copy Link
-                    </button>
-
-                    <a href="${esc(url.href)}"
-                       target="_blank"
-                       rel="noopener noreferrer">
-                        Watch Live
-                    </a>
-                `:`
-                    <span>Private match</span>
-                `}
-
-                <button type="button" data-resume="${esc(m.id)}">
-                    Open Scorer
-                </button>
-
+                    <button type="button" data-copy-match="${esc(m.id)}">Copy Link</button>
+                    <a href="${esc(url.href)}" target="_blank" rel="noopener noreferrer">Watch Live</a>
+                `:`<span>Private match</span>`}
+                <button type="button" data-resume="${esc(m.id)}">Open Scorer</button>
             </div>
-        </div>
-        `;
+        </div>`;
     }).join('')||'<p>No saved matches yet.</p>';
 }
 
@@ -205,7 +173,6 @@ async function loadMatchSetup(){
             .select('id,name')
             .eq('organizer_id',sessionUser.id)
             .order('name')
-
     ]);
 
     if(tr.error){
@@ -276,11 +243,9 @@ function refreshPlayerOptions(){
     ['striker','nonStriker','bowler'].forEach(id=>{
 
         const el=$('#'+id);
-
         if(!el)return;
 
         const old=el.value;
-
         el.innerHTML=opts;
 
         if(old&&roster.some(p=>p.display_name===old)){
@@ -301,82 +266,126 @@ async function create(e){
 
     e.preventDefault();
 
-    const ta=teams.find(x=>x.id===$('#teamA').value);
-    const tb=teams.find(x=>x.id===$('#teamB').value);
+    const status=$('#createMsg');
+    const button=$('#createForm').querySelector('button[type="submit"],input[type="submit"]');
 
-    if(!ta||!tb||ta.id===tb.id){
-        $('#createMsg').textContent='Select two different saved teams.';
-        return;
-    }
-
-    const bat=$('#batting').value==='A'?ta.name:tb.name;
-    const bowl=$('#batting').value==='A'?tb.name:ta.name;
-
-    const st=$('#striker').value;
-    const ns=$('#nonStriker').value;
-    const bw=$('#bowler').value;
-
-    if(!st||!ns||!bw||st===ns){
-        $('#createMsg').textContent=
-            'Select two different opening batters and an opening bowler.';
-        return;
-    }
-
-    const payload={
-        owner_id:sessionUser.id,
-        match_title:$('#title').value.trim(),
-        team_a:ta.name,
-        team_b:tb.name,
-        batting_team:bat,
-        bowling_team:bowl,
-        striker:st,
-        non_striker:ns,
-        bowler:bw,
-        initial_striker:st,
-        initial_non_striker:ns,
-        initial_bowler:bw,
-        first_innings_team:bat,
-        second_innings_team:null,
-        is_public:$('#public').checked,
-        team_a_id:ta.id,
-        team_b_id:tb.id,
-        tournament_id:$('#tournament').value||null
-    };
-
-    const r=await db.from('cc_live_matches')
-        .insert(payload)
-        .select()
-        .single();
-
-    if(r.error){
-        $('#createMsg').textContent=
-            'Could not create match: '+r.error.message;
-        return;
-    }
-
-    // IMPORTANT: Generate immediately using the returned database ID.
-    match=r.data;
-
-    generateMatchLink(match.id,match.is_public);
-
-    history.replaceState(null,'','?id='+encodeURIComponent(match.id));
+    if(button)button.disabled=true;
+    status.textContent='Creating match...';
 
     try{
-        await loadMatch(match.id);
-    }catch(error){
-        $('#createMsg').textContent=
-            'Match created, but loading failed: '+error.message;
 
-        // Keep the generated link visible even if delivery loading fails.
+        const ta=teams.find(x=>x.id===$('#teamA').value);
+        const tb=teams.find(x=>x.id===$('#teamB').value);
+
+        if(!ta||!tb||ta.id===tb.id){
+            throw new Error('Select two different saved teams.');
+        }
+
+        const bat=$('#batting').value==='A'?ta.name:tb.name;
+        const bowl=$('#batting').value==='A'?tb.name:ta.name;
+
+        const st=$('#striker').value;
+        const ns=$('#nonStriker').value;
+        const bw=$('#bowler').value;
+
+        if(!st||!ns||!bw||st===ns){
+            throw new Error('Select two different opening batters and an opening bowler.');
+        }
+
+        const payload={
+            owner_id:sessionUser.id,
+            match_title:$('#title').value.trim(),
+            team_a:ta.name,
+            team_b:tb.name,
+            batting_team:bat,
+            bowling_team:bowl,
+            striker:st,
+            non_striker:ns,
+            bowler:bw,
+            initial_striker:st,
+            initial_non_striker:ns,
+            initial_bowler:bw,
+            first_innings_team:bat,
+            second_innings_team:null,
+            is_public:$('#public').checked,
+            team_a_id:ta.id,
+            team_b_id:tb.id,
+            tournament_id:$('#tournament').value||null
+        };
+
+        const r=await db.from('cc_live_matches')
+            .insert(payload)
+            .select()
+            .single();
+
+        if(r.error){
+            console.error('MATCH INSERT ERROR:',r.error);
+            throw new Error(
+                r.error.message+
+                (r.error.details?' | Details: '+r.error.details:'')+
+                (r.error.hint?' | Hint: '+r.error.hint:'')+
+                ' | Code: '+(r.error.code||'unknown')
+            );
+        }
+
+        if(!r.data||!r.data.id){
+            throw new Error('Supabase insert returned no match ID.');
+        }
+
+        match=r.data;
+
         generateMatchLink(match.id,match.is_public);
-        return;
+
+        history.replaceState(
+            null,'','?id='+encodeURIComponent(match.id)
+        );
+
+        $('#create').hidden=true;
+        $('#saved').hidden=true;
+        $('#score').hidden=false;
+
+        try{
+
+            const d=await db.from('cc_live_deliveries')
+                .select('*')
+                .eq('match_id',match.id)
+                .order('sequence_no',{ascending:true});
+
+            if(d.error)throw d.error;
+
+            deliveries=d.data||[];
+            render();
+
+        }catch(loadError){
+
+            console.error('MATCH CREATED; DELIVERY LOAD FAILED:',loadError);
+
+            generateMatchLink(match.id,match.is_public);
+
+            status.textContent=
+                'Match created (ID: '+match.id+'), but score data could not load: '+loadError.message;
+
+            await loadSavedMatches();
+            return;
+        }
+
+        generateMatchLink(match.id,match.is_public);
+
+        await loadSavedMatches();
+
+        status.textContent='Match created successfully. Match ID: '+match.id;
+
+    }catch(error){
+
+        console.error('CREATE MATCH FAILED:',error);
+
+        status.textContent=
+            'MATCH CREATION FAILED: '+(error.message||String(error));
+
+    }finally{
+
+        if(button)button.disabled=false;
     }
-
-    generateMatchLink(match.id,match.is_public);
-
-    await loadSavedMatches();
-
-    $('#createMsg').textContent='Match created successfully.';
 }
 
 
@@ -387,7 +396,6 @@ async function create(e){
 function swap(){
 
     const x=match.striker;
-
     match.striker=match.non_striker;
     match.non_striker=x;
 }
@@ -420,7 +428,6 @@ function render(){
     $('#teamsLine').textContent=
         `${match.batting_team} batting · ${match.bowling_team} bowling · Innings ${match.innings} · ${match.status}`;
 
-    // Generate link for the currently selected match.
     generateMatchLink(match.id,match.is_public);
 
     $('#feed').innerHTML=deliveries
@@ -457,10 +464,8 @@ async function loadMatch(id){
 
     if(m.error)throw m.error;
 
-    // Set match before loading deliveries.
     match=m.data;
 
-    // Generate link immediately from the match ID.
     generateMatchLink(match.id,match.is_public);
 
     const d=await db.from('cc_live_deliveries')
@@ -691,7 +696,6 @@ async function ball(kind,runs=0){
     $('#nextBatter').value='';
 
     await loadMatch(match.id);
-
     await loadSavedMatches();
 
     msg('Delivery saved to Supabase.');
@@ -963,7 +967,7 @@ $('#savedMatches').addEventListener('click',async e=>{
 
         const matchId=copyButton.dataset.copyMatch;
 
-        const url=new URL(
+        const url=new window.URL(
             'https://reshantj.github.io/crick-champs/watch/'
         );
 
@@ -1045,10 +1049,9 @@ async function init(){
 
     $('#dismissedBatter').addEventListener('change',()=>{});
 
-    const id=new URLSearchParams(location.search).get('id');
+    const id=new window.URLSearchParams(location.search).get('id');
 
     await loadMatchSetup();
-
     await loadSavedMatches();
 
     if(id){
