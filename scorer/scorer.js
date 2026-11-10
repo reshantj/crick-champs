@@ -1,46 +1,57 @@
-
 (()=>{
-const URL='https://bgafsvpgijqywjoiersq.supabase.co',KEY='sb_publishable_k4ZsbNa5sBBFHHN3Q1QZDw_pgjdlj4x',db=window.supabase.createClient(URL,KEY),$=s=>document.querySelector(s);
+'use strict';
 
-let match=null,deliveries=[],sessionUser=null,teams=[],players=[],tournaments=[];
+const URL='https://bgafsvpgijqywjoiersq.supabase.co';
+const KEY='sb_publishable_k4ZsbNa5sBBFHHN3Q1QZDw_pgjdlj4x';
+const db=window.supabase.createClient(URL,KEY);
+const $=s=>document.querySelector(s);
 
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let match=null;
+let deliveries=[];
+let sessionUser=null;
+let teams=[];
+let players=[];
+let tournaments=[];
+
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+}[c]));
+
 const msg=t=>$('#scoreMsg').textContent=t;
-const err=(a,b,c)=>[a,b,c].filter(Boolean).map(x=>x.message).join(' · ');
 
 
 // ========================================
-// PUBLIC SPECTATOR LINK FOR OPEN MATCH
+// GENERATE MATCH LINK FROM SUPABASE ID
 // ========================================
 
-function updateSpectatorLink(){
+function generateMatchLink(matchId,isPublic=true){
 
+    const input=$('#watchUrl');
     const link=$('#watchLink');
     const copy=$('#copyLink');
-    const input=$('#watchUrl');
     const status=$('#watchLinkStatus');
 
-    if(!link||!copy||!input)return;
+    if(!input||!link||!copy)return;
 
-    if(!match||!match.id){
+    if(!matchId){
 
+        input.value='';
+        input.placeholder='Match ID not available';
         link.href='#';
         link.textContent='Open Match';
-        input.value='';
-        input.placeholder='Match link will appear here';
         copy.disabled=true;
 
-        if(status)status.textContent='Create or open a public match to generate its link.';
+        if(status)status.textContent='Match ID not available.';
 
         return;
     }
 
-    if(match.is_public!==true){
+    if(isPublic!==true){
 
-        link.href='#';
-        link.textContent='Private Match';
         input.value='';
         input.placeholder='This match is private';
+        link.href='#';
+        link.textContent='Private Match';
         copy.disabled=true;
 
         if(status)status.textContent='This match is not publicly viewable.';
@@ -48,15 +59,20 @@ function updateSpectatorLink(){
         return;
     }
 
-    const url=new URL('../watch/',window.location.href);
-    url.searchParams.set('id',match.id);
+    const url=new URL(
+        'https://reshantj.github.io/crick-champs/watch/'
+    );
 
+    url.searchParams.set('id',String(matchId));
+
+    input.value=url.href;
     link.href=url.href;
     link.textContent='Open Match';
-    input.value=url.href;
     copy.disabled=false;
 
-    if(status)status.textContent='Share this link with viewers to watch the live match.';
+    if(status){
+        status.textContent='Your public match link is ready to share.';
+    }
 }
 
 
@@ -66,7 +82,12 @@ function updateSpectatorLink(){
 
 async function requireUser(){
 
-    const {data:{session}}=await db.auth.getSession();
+    const {data:{session},error}=await db.auth.getSession();
+
+    if(error){
+        console.error(error);
+        return false;
+    }
 
     if(!session){
         location.href='../?login=1';
@@ -74,13 +95,14 @@ async function requireUser(){
     }
 
     sessionUser=session.user;
+
     return true;
 }
 
 
 // ========================================
-// LOAD ALL SAVED MATCHES
-// EACH MATCH GETS ITS OWN URL
+// SAVED MATCHES
+// EACH MATCH GETS A DIFFERENT LINK
 // ========================================
 
 async function loadSavedMatches(){
@@ -101,79 +123,68 @@ async function loadSavedMatches(){
 
     $('#savedMatches').innerHTML=(r.data||[]).map(m=>{
 
-        // Generate a unique URL from this match's actual database ID.
-        const url=new URL('../watch/',window.location.href);
-        url.searchParams.set('id',m.id);
+        const publicMatch=m.is_public===true;
 
-        const publicLink=m.is_public===true
-            ?url.href
-            :'Private match — no public link';
+        const url=new URL(
+            'https://reshantj.github.io/crick-champs/watch/'
+        );
+
+        url.searchParams.set('id',String(m.id));
 
         return `
-            <div class="panel" style="margin:12px 0;padding:14px;">
+        <div class="panel" style="margin:12px 0;padding:14px;">
 
-                <h3>${esc(m.match_title)}</h3>
+            <h3>${esc(m.match_title)}</h3>
 
-                <p>
-                    ${esc(m.team_a)} vs ${esc(m.team_b)}
-                </p>
+            <p>${esc(m.team_a)} vs ${esc(m.team_b)}</p>
 
-                <p>
-                    <b>Score:</b>
-                    ${m.runs||0}/${m.wickets||0}
-                    (${Math.floor((m.legal_balls||0)/6)}.${(m.legal_balls||0)%6})
-                </p>
+            <p>
+                <b>Score:</b>
+                ${m.runs||0}/${m.wickets||0}
+                (${Math.floor((m.legal_balls||0)/6)}.${(m.legal_balls||0)%6})
+            </p>
 
-                <p>
-                    <b>Status:</b> ${esc(m.status)}
-                </p>
+            <p><b>Status:</b> ${esc(m.status)}</p>
 
-                <label>Public Match Link</label>
+            <label>Public Match Link</label>
 
-                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
 
-                    <input
-                        type="text"
-                        readonly
-                        value="${esc(publicLink)}"
-                        style="flex:1;min-width:220px;"
-                        ${m.is_public===true?'':'disabled'}
-                    >
+                <input
+                    type="text"
+                    readonly
+                    value="${publicMatch?esc(url.href):'Private match — no public link'}"
+                    style="flex:1;min-width:220px;"
+                    ${publicMatch?'':'disabled'}
+                >
 
-                    ${m.is_public===true?`
-
-                        <button
-                            type="button"
-                            data-copy-match="${esc(m.id)}">
-                            Copy Link
-                        </button>
-
-                        <a
-                            href="${esc(url.href)}"
-                            target="_blank"
-                            rel="noopener noreferrer">
-                            Watch Live
-                        </a>
-
-                    `:''}
-
-                    <button
-                        type="button"
-                        data-resume="${esc(m.id)}">
-                        Open Scorer
+                ${publicMatch?`
+                    <button type="button" data-copy-match="${esc(m.id)}">
+                        Copy Link
                     </button>
 
-                </div>
+                    <a href="${esc(url.href)}"
+                       target="_blank"
+                       rel="noopener noreferrer">
+                        Watch Live
+                    </a>
+                `:`
+                    <span>Private match</span>
+                `}
+
+                <button type="button" data-resume="${esc(m.id)}">
+                    Open Scorer
+                </button>
 
             </div>
+        </div>
         `;
-
     }).join('')||'<p>No saved matches yet.</p>';
 }
 
 
 // ========================================
-// LOAD TEAMS, PLAYERS, TOURNAMENTS
+// LOAD TEAMS AND PLAYERS
 // ========================================
 
 async function loadMatchSetup(){
@@ -218,15 +229,21 @@ async function loadMatchSetup(){
 
     $('#teamA').innerHTML=
         '<option value="">Select Team A</option>'+
-        teams.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
+        teams.map(x=>
+            `<option value="${esc(x.id)}">${esc(x.name)}</option>`
+        ).join('');
 
     $('#teamB').innerHTML=
         '<option value="">Select Team B</option>'+
-        teams.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
+        teams.map(x=>
+            `<option value="${esc(x.id)}">${esc(x.name)}</option>`
+        ).join('');
 
     $('#tournament').innerHTML=
         '<option value="">Friendly / No tournament</option>'+
-        tournaments.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
+        tournaments.map(x=>
+            `<option value="${esc(x.id)}">${esc(x.name)}</option>`
+        ).join('');
 
     refreshPlayerOptions();
 
@@ -269,7 +286,6 @@ function refreshPlayerOptions(){
         if(old&&roster.some(p=>p.display_name===old)){
             el.value=old;
         }
-
     });
 }
 
@@ -301,38 +317,29 @@ async function create(e){
     const bw=$('#bowler').value;
 
     if(!st||!ns||!bw||st===ns){
-        $('#createMsg').textContent='Select two different opening batters and an opening bowler.';
+        $('#createMsg').textContent=
+            'Select two different opening batters and an opening bowler.';
         return;
     }
 
     const payload={
-
         owner_id:sessionUser.id,
-
         match_title:$('#title').value.trim(),
-
         team_a:ta.name,
         team_b:tb.name,
-
         batting_team:bat,
         bowling_team:bowl,
-
         striker:st,
         non_striker:ns,
         bowler:bw,
-
         initial_striker:st,
         initial_non_striker:ns,
         initial_bowler:bw,
-
         first_innings_team:bat,
         second_innings_team:null,
-
         is_public:$('#public').checked,
-
         team_a_id:ta.id,
         team_b_id:tb.id,
-
         tournament_id:$('#tournament').value||null
     };
 
@@ -342,15 +349,34 @@ async function create(e){
         .single();
 
     if(r.error){
-        $('#createMsg').textContent='Could not create match: '+r.error.message;
+        $('#createMsg').textContent=
+            'Could not create match: '+r.error.message;
         return;
     }
 
-    await loadMatch(r.data.id);
+    // IMPORTANT: Generate immediately using the returned database ID.
+    match=r.data;
 
-    history.replaceState(null,'',`?id=${r.data.id}`);
+    generateMatchLink(match.id,match.is_public);
+
+    history.replaceState(null,'','?id='+encodeURIComponent(match.id));
+
+    try{
+        await loadMatch(match.id);
+    }catch(error){
+        $('#createMsg').textContent=
+            'Match created, but loading failed: '+error.message;
+
+        // Keep the generated link visible even if delivery loading fails.
+        generateMatchLink(match.id,match.is_public);
+        return;
+    }
+
+    generateMatchLink(match.id,match.is_public);
 
     await loadSavedMatches();
+
+    $('#createMsg').textContent='Match created successfully.';
 }
 
 
@@ -373,9 +399,12 @@ function swap(){
 
 function render(){
 
+    if(!match)return;
+
     const legal=match.legal_balls||0;
 
-    $('#scoreValue').textContent=`${match.runs}/${match.wickets}`;
+    $('#scoreValue').textContent=
+        `${match.runs||0}/${match.wickets||0}`;
 
     $('#overs').textContent=
         `${Math.floor(legal/6)}.${legal%6} overs`;
@@ -385,31 +414,25 @@ function render(){
     $('#bName').value=match.bowler||'';
 
     $('#onStrike').textContent=match.striker||'—';
-
     $('#lastBall').textContent=match.last_event||'Match started';
-
-    $('#matchTitle').textContent=match.match_title;
+    $('#matchTitle').textContent=match.match_title||'Live match';
 
     $('#teamsLine').textContent=
         `${match.batting_team} batting · ${match.bowling_team} bowling · Innings ${match.innings} · ${match.status}`;
 
-    // Generate the link for the currently opened match.
-    updateSpectatorLink();
+    // Generate link for the currently selected match.
+    generateMatchLink(match.id,match.is_public);
 
     $('#feed').innerHTML=deliveries
-
         .filter(d=>Number(d.innings_no||1)===Number(match.innings))
-
         .slice()
         .reverse()
-
-        .map(d=>
-            `<div class="feedrow">
+        .map(d=>`
+            <div class="feedrow">
                 <span>${d.over_number}.${d.ball_in_over} · ${esc(d.striker)} vs ${esc(d.bowler)}</span>
                 <b>${esc(d.commentary||d.total_runs+' runs')}</b>
-            </div>`
-        )
-
+            </div>
+        `)
         .join('')||'<p>No balls recorded in this innings.</p>';
 
     $('#finishMatch').disabled=match.status==='completed';
@@ -434,7 +457,11 @@ async function loadMatch(id){
 
     if(m.error)throw m.error;
 
+    // Set match before loading deliveries.
     match=m.data;
+
+    // Generate link immediately from the match ID.
+    generateMatchLink(match.id,match.is_public);
 
     const d=await db.from('cc_live_deliveries')
         .select('*')
@@ -450,6 +477,8 @@ async function loadMatch(id){
     $('#score').hidden=false;
 
     render();
+
+    generateMatchLink(match.id,match.is_public);
 }
 
 
@@ -460,13 +489,9 @@ async function loadMatch(id){
 function currentNames(){
 
     return {
-
         striker:$('#sName').value.trim()||match.striker,
-
         non_striker:$('#nsName').value.trim()||match.non_striker,
-
         bowler:$('#bName').value.trim()||match.bowler
-
     };
 }
 
@@ -483,10 +508,10 @@ async function ball(kind,runs=0){
     }
 
     const before={...match};
-
     const names=currentNames();
 
-    if(!names.striker||!names.non_striker||!names.bowler||names.striker===names.non_striker){
+    if(!names.striker||!names.non_striker||!names.bowler||
+       names.striker===names.non_striker){
         msg('Check striker, non-striker and bowler names.');
         return;
     }
@@ -495,23 +520,21 @@ async function ball(kind,runs=0){
 
     let bat=0,extra=0,total=0,legal=true,wicket=false,label='',completed=0;
 
-    if(kind==='dot')label='0';
-
+    if(kind==='dot'){
+        label='0';
+    }
     else if(kind==='runs'){
         bat=Math.max(0,Number(runs)||0);
         total=bat;
         completed=bat;
         label=String(bat);
     }
-
     else if(kind==='four'){
         bat=4;total=4;label='4';
     }
-
     else if(kind==='six'){
         bat=6;total=6;label='6';
     }
-
     else if(kind==='wide'){
         extra=Math.max(1,Number(runs)||1);
         total=extra;
@@ -519,21 +542,18 @@ async function ball(kind,runs=0){
         completed=extra-1;
         label=`Wd ${extra}`;
     }
-
     else if(kind==='no_ball'){
         extra=Math.max(1,Number(runs)||1);
         total=extra;
         legal=false;
         label=`NB ${extra}`;
     }
-
     else if(kind==='bye'||kind==='leg_bye'){
         completed=Math.max(1,Number(runs)||1);
         extra=completed;
         total=extra;
         label=(kind==='bye'?'B ':'Lb ')+completed;
     }
-
     else if(kind==='wicket'){
         wicket=true;
         label='W';
@@ -553,7 +573,6 @@ async function ball(kind,runs=0){
     }
 
     // Byes and leg-byes use completed-run parity.
-
     if(['bye','leg_bye'].includes(kind)&&completed%2===1){
         swap();
     }
@@ -593,7 +612,6 @@ async function ball(kind,runs=0){
     }
 
     // Separate over-end rotation after six legal balls.
-
     if(legal&&match.legal_balls%6===0){
         swap();
     }
@@ -622,7 +640,6 @@ async function ball(kind,runs=0){
     };
 
     const ins=await db.from('cc_live_deliveries').insert({
-
         match_id:match.id,
         sequence_no:seq,
         over_number:ov,
@@ -637,14 +654,10 @@ async function ball(kind,runs=0){
         non_striker:oldNon,
         bowler:names.bowler,
         commentary:label,
-
         dismissed_batter:wicket
             ?($('#dismissedBatter').value==='non_striker'?oldNon:oldStriker):null,
-
         incoming_batter:wicket?$('#nextBatter').value.trim():null,
-
         wicket_type:wicket?$('#wicketType').value:null,
-
         state_after:state,
         batting_team:before.batting_team
     });
@@ -656,7 +669,6 @@ async function ball(kind,runs=0){
     }
 
     const up=await db.from('cc_live_matches').update({
-
         runs:match.runs,
         wickets:match.wickets,
         legal_balls:match.legal_balls,
@@ -666,7 +678,6 @@ async function ball(kind,runs=0){
         bowler:match.bowler,
         last_event:label,
         updated_at:match.updated_at
-
     })
     .eq('id',match.id)
     .eq('owner_id',sessionUser.id);
@@ -680,6 +691,8 @@ async function ball(kind,runs=0){
     $('#nextBatter').value='';
 
     await loadMatch(match.id);
+
+    await loadSavedMatches();
 
     msg('Delivery saved to Supabase.');
 }
@@ -708,32 +721,24 @@ async function endInnings(){
         }
 
         const r=await db.from('cc_live_matches').update({
-
             innings:2,
-
             first_innings_team:match.first_innings_team||match.batting_team,
             second_innings_team:batting,
-
             batting_team:batting,
             bowling_team:bowling,
-
             striker:st,
             non_striker:ns,
             bowler:bw,
-
             initial_striker:st,
             initial_non_striker:ns,
             initial_bowler:bw,
-
             runs:0,
             wickets:0,
             legal_balls:0,
             extras:0,
-
             status:'live',
             last_event:'Second innings started',
             updated_at:new Date().toISOString()
-
         })
         .eq('id',match.id)
         .eq('owner_id',sessionUser.id);
@@ -744,11 +749,11 @@ async function endInnings(){
         }
 
         await loadMatch(match.id);
+        await loadSavedMatches();
 
         msg('Second innings started. Opening batters and bowler saved.');
 
     }else{
-
         await finishMatch();
     }
 }
@@ -765,11 +770,9 @@ async function finishMatch(){
     if(!confirm('Mark this match completed? Saved deliveries and both innings will remain.'))return;
 
     const r=await db.from('cc_live_matches').update({
-
         status:'completed',
         last_event:'Match completed',
         updated_at:new Date().toISOString()
-
     })
     .eq('id',match.id)
     .eq('owner_id',sessionUser.id);
@@ -828,20 +831,14 @@ async function undo(){
     const first=rows[0];
 
     const patch={
-
         runs,
         wickets,
         extras,
         legal_balls:legal,
-
         striker:state?.striker||first?.striker||match.initial_striker,
-
         non_striker:state?.non_striker||first?.non_striker||match.initial_non_striker,
-
         bowler:state?.bowler||first?.bowler||match.initial_bowler,
-
         last_event:rows.at(-1)?.commentary||'Innings started',
-
         status:'live',
         updated_at:new Date().toISOString()
     };
@@ -856,6 +853,7 @@ async function undo(){
     }
 
     await loadMatch(match.id);
+    await loadSavedMatches();
 
     msg('Last delivery undone.');
 }
@@ -868,8 +866,6 @@ async function undo(){
 async function copySpectatorLink(){
 
     const input=$('#watchUrl');
-
-    updateSpectatorLink();
 
     if(!match||match.is_public!==true||!input.value){
         msg('No public match link available.');
@@ -913,37 +909,39 @@ async function copySpectatorLink(){
 $('#createForm').addEventListener('submit',create);
 
 document.querySelectorAll('[data-kind]').forEach(b=>
-
     b.addEventListener('click',()=>ball(
         b.dataset.kind,
         Number(b.dataset.runs??$('#extraRuns').value??0)
     ))
-
 );
 
 $('#swap').addEventListener('click',async()=>{
 
     const n=currentNames();
 
+    const oldStriker=match.striker;
+    const oldNon=match.non_striker;
+
     match.striker=n.non_striker;
     match.non_striker=n.striker;
 
     const r=await db.from('cc_live_matches').update({
-
         striker:match.striker,
         non_striker:match.non_striker
-
     })
     .eq('id',match.id)
     .eq('owner_id',sessionUser.id);
 
     if(r.error){
+
+        match.striker=oldStriker;
+        match.non_striker=oldNon;
+
         msg(r.error.message);
         return;
     }
 
     render();
-
     msg('Ends swapped manually.');
 });
 
@@ -954,20 +952,22 @@ $('#copyLink').addEventListener('click',copySpectatorLink);
 
 
 // ========================================
-// SAVED MATCHES: COPY / OPEN
+// SAVED MATCHES: COPY AND OPEN
 // ========================================
 
 $('#savedMatches').addEventListener('click',async e=>{
 
-    // COPY LINK FOR THE SELECTED SAVED MATCH
     const copyButton=e.target.closest('[data-copy-match]');
 
     if(copyButton){
 
         const matchId=copyButton.dataset.copyMatch;
 
-        const url=new URL('../watch/',window.location.href);
-        url.searchParams.set('id',matchId);
+        const url=new URL(
+            'https://reshantj.github.io/crick-champs/watch/'
+        );
+
+        url.searchParams.set('id',String(matchId));
 
         try{
 
@@ -1014,7 +1014,6 @@ $('#savedMatches').addEventListener('click',async e=>{
         return;
     }
 
-    // OPEN MATCH IN SCORER
     const resumeButton=e.target.closest('[data-resume]');
 
     if(!resumeButton)return;
@@ -1023,7 +1022,11 @@ $('#savedMatches').addEventListener('click',async e=>{
 
         await loadMatch(resumeButton.dataset.resume);
 
-        history.replaceState(null,'',`?id=${resumeButton.dataset.resume}`);
+        history.replaceState(
+            null,
+            '',
+            '?id='+encodeURIComponent(resumeButton.dataset.resume)
+        );
 
     }catch(error){
 
@@ -1056,7 +1059,8 @@ async function init(){
 
         }catch(e){
 
-            $('#createMsg').textContent='Could not reopen match: '+e.message;
+            $('#createMsg').textContent=
+                'Could not reopen match: '+e.message;
         }
     }
 }
