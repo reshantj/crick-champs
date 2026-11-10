@@ -23,6 +23,6 @@ Deno.serve(async (req) => {
     const { error: stateErr } = await admin.from('admin_user_controls').upsert({ user_id, account_status: suspended ? 'suspended' : 'active', updated_by: user.id, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
     if (stateErr) throw stateErr;
     await admin.from('admin_audit_logs').insert({ actor_id: user.id, action: suspended ? 'user_force_stopped' : 'user_access_restored', details: { target_user_id: user_id, target_email: target.user.email } });
-    return new Response(JSON.stringify({ success: true, message: suspended ? 'Account suspended and sessions revoked.' : 'Account access restored.' }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ success: true, message: suspended ? 'Account suspended; new sign-ins are blocked. Existing sessions may remain valid until token expiry.' : 'Account access restored.' }), { headers: { ...cors, 'Content-Type': 'application/json' } });
   } catch (e) { return new Response(JSON.stringify({ error: e.message || 'Request failed' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } }); }
 });
